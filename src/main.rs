@@ -1,7 +1,7 @@
 mod color;
 
 use image::GenericImageView;
-use image::{Rgb, RgbImage};
+use image::{Rgba, RgbaImage};
 use imageproc::rect::Rect;
 use imageproc::drawing::{
     draw_filled_rect_mut,
@@ -165,33 +165,32 @@ fn main() {
     */
 
     // Quantize
-    //let spacing = 8;
     let c_locations = calculate_dots(CMYK_ANGLES[0], width, height, spacing, &c_buf);
     let m_locations = calculate_dots(CMYK_ANGLES[1], width, height, spacing, &m_buf);
     let y_locations = calculate_dots(CMYK_ANGLES[2], width, height, spacing, &y_buf);
     let k_locations = calculate_dots(CMYK_ANGLES[3], width, height, spacing, &k_buf);
 
     //let mut output = RgbaImage::new(width as u32, height as u32);
-    let mut output = Blend(RgbImage::new(width as u32, height as u32));
+    let mut output = Blend(RgbaImage::new(width as u32, height as u32));
 
-    draw_filled_rect_mut(&mut output,  Rect::at(0, 0).of_size(width as u32, height as u32), Rgb([255u8, 255u8, 255u8]));
+    draw_filled_rect_mut(&mut output,  Rect::at(0, 0).of_size(width as u32, height as u32), Rgba([255u8, 255u8, 255u8, 255u8]));
 
     let spacing = spacing as f64 / 1.8;
     
     for c in k_locations.iter() {
-        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgb([0u8, 0u8, 0u8]));
+        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 0u8, 0u8, 255u8]));
     }
 
     for c in c_locations.iter() {
-        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgb([0u8, 255u8, 255u8]));
+        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 255u8, 255u8, 150u8]));
     }
     
     for c in m_locations.iter() {
-        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgb([255u8, 0u8, 255u8]));
+        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([255u8, 0u8, 255u8, 150u8]));
     }
 
     for c in y_locations.iter() {
-        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing as f64 / 1.0) as f64 * c.2) as i32, Rgb([255u8, 255u8, 0u8]));
+        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing as f64 / 1.0) as f64 * c.2) as i32, Rgba([255u8, 255u8, 0u8, 150u8]));
     }
 
     output.0.inner_mut().save(output_path).unwrap();
