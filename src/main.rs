@@ -175,11 +175,7 @@ fn main() {
 
     draw_filled_rect_mut(&mut output,  Rect::at(0, 0).of_size(width as u32, height as u32), Rgba([255u8, 255u8, 255u8, 255u8]));
 
-    let spacing = spacing as f64 / 1.8;
-    
-    for c in k_locations.iter() {
-        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 0u8, 0u8, 255u8]));
-    }
+    let spacing = spacing as f64 / 1.;
 
     for c in c_locations.iter() {
         draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 255u8, 255u8, 150u8]));
@@ -191,6 +187,10 @@ fn main() {
 
     for c in y_locations.iter() {
         draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing as f64 / 1.0) as f64 * c.2) as i32, Rgba([255u8, 255u8, 0u8, 150u8]));
+    }
+
+    for c in k_locations.iter() {
+        draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 0u8, 0u8, 150u8]));
     }
 
     output.0.inner_mut().save(output_path).unwrap();
