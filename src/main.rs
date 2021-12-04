@@ -69,9 +69,9 @@ fn calculate_dots(deg_angle: f64, width: usize, height: usize, spacing: u32, col
             y_coord_r += y_spacing;
         }
 
-        // Create dots off to the left
-        let mut x_coord_l = x_coord;
-        let mut y_coord_l = y_coord;
+        // Create dots off to the left, offset by one so we don't duplicate the generator line
+        let mut x_coord_l = x_coord-x_spacing;
+        let mut y_coord_l = y_coord-y_spacing;
         loop {
             if x_coord_l <= 0 as i32 || y_coord_l >= height {
                 break;
@@ -104,7 +104,7 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let input_path = &args[1];
     let spacing = args[2].parse::<u32>().unwrap_or(16);
-    let output_path = format!("{}_halftoned_at_{}.png", &input_path[..input_path.len() - 3], spacing);
+    let output_path = format!("{}_halftoned_at_{}.png", &input_path[..input_path.len() - 4], spacing);
 
     // Use the open function to load an image from a Path.
     // `open` returns a `DynamicImage` on success.
