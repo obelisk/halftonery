@@ -10,6 +10,7 @@ use imageproc::drawing::{
 use imageproc::drawing::{Blend};
 use image::GenericImage;
 
+// Set the screen angles that are used for the different colours.
 const CMYK_ANGLES: [f64; 4] = [15., 75., 90., 45.];
 
 fn calculate_intensity_at_point(x: u32, y: u32, width: usize, height: usize, spacing: u32, color_buf: &[f64]) -> f64 {
@@ -86,7 +87,6 @@ fn calculate_dots(deg_angle: f64, width: usize, height: usize, spacing: u32, col
             y_coord_l -= y_spacing;
         }
 
-        //img_dots.put_pixel(x_coord as u32, y_coord as u32, Rgb([255, 255, 255]));
         // Go to the next line
         line += 1;
         x_coord = -x_newline_spacing * line;
@@ -106,20 +106,10 @@ fn main() {
     let spacing = args[2].parse::<u32>().unwrap_or(16);
     let output_path = format!("{}_halftoned_at_{}.png", &input_path[..input_path.len() - 4], spacing);
 
-    // Use the open function to load an image from a Path.
-    // `open` returns a `DynamicImage` on success.
     let img = image::open(input_path).unwrap();
 
     let width = img.width() as usize;
     let height = img.height() as usize;
-
-    // Debug code for holding separate layer images
-    /*
-    let mut img_c: RgbImage = ImageBuffer::new(img.width(), img.height());
-    let mut img_m: RgbImage = ImageBuffer::new(img.width(), img.height());
-    let mut img_y: RgbImage = ImageBuffer::new(img.width(), img.height());
-    let mut img_k: RgbImage = ImageBuffer::new(img.width(), img.height());
-    */
 
     let mut c_buf = Vec::with_capacity(width * height);
     let mut m_buf = Vec::with_capacity(width * height);
@@ -135,34 +125,11 @@ fn main() {
     for (x, y, rgba) in img.pixels() {
         let cmyk = color::convert_rgb_to_cmyk(&color::Rgb{r: rgba[0], g: rgba[1], b: rgba[2]});
 
-        /*
-        let c_channel = color::convert_cmyk_to_rgb(&color::Cmyk{c: cmyk.c, m: 0., y: 0., k: 0.,});
-        let m_channel = color::convert_cmyk_to_rgb(&color::Cmyk{c: 0., m: cmyk.m, y: 0., k: 0.,});
-        let y_channel = color::convert_cmyk_to_rgb(&color::Cmyk{c: 0., m: 0., y: cmyk.y, k: 0.,});
-        let k_channel = color::convert_cmyk_to_rgb(&color::Cmyk{c: 0., m: 0., y: 0., k: cmyk.k,});
-        */
-
         c_buf[y as usize * width + x as usize] = cmyk.c;
         m_buf[y as usize * width + x as usize] = cmyk.m;
         y_buf[y as usize * width + x as usize] = cmyk.y;
-        k_buf[y as usize * width + x as usize] = cmyk.k;
-        
-        // Debug code for building the separate layer images
-        /*
-        img_c.put_pixel(x, y, Rgb([c_channel.r, c_channel.g, c_channel.b]));
-        img_m.put_pixel(x, y, Rgb([m_channel.r, m_channel.g, m_channel.b]));
-        img_y.put_pixel(x, y, Rgb([y_channel.r, y_channel.g, y_channel.b]));
-        img_k.put_pixel(x, y, Rgb([k_channel.r, k_channel.g, k_channel.b]));
-        */
+        k_buf[y as usize * width + x as usize] = cmyk.k;  
     }
-
-    // Debug: Outputing completed cmyk layers
-    /*
-    img_c.save("hillside_c.jpg").unwrap();
-    img_m.save("hillside_m.jpg").unwrap();
-    img_y.save("hillside_y.jpg").unwrap();
-    img_k.save("hillside_k.jpg").unwrap();
-    */
 
     // Quantize
     let c_locations = calculate_dots(CMYK_ANGLES[0], width, height, spacing, &c_buf);
@@ -170,7 +137,6 @@ fn main() {
     let y_locations = calculate_dots(CMYK_ANGLES[2], width, height, spacing, &y_buf);
     let k_locations = calculate_dots(CMYK_ANGLES[3], width, height, spacing, &k_buf);
 
-    //let mut output = RgbaImage::new(width as u32, height as u32);
     let mut output = Blend(RgbaImage::new(width as u32, height as u32));
 
     draw_filled_rect_mut(&mut output,  Rect::at(0, 0).of_size(width as u32, height as u32), Rgba([255u8, 255u8, 255u8, 255u8]));
