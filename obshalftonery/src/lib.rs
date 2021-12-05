@@ -34,7 +34,7 @@ fn clamp(num: i32) -> u8 {
     }
 }
 
-fn convert_yvyu_frame_to_cmyk_buffers(video: &video::VideoDataContext) -> CmykBuffers {
+fn convert_uyuv_frame_to_cmyk_buffers(video: &video::VideoDataContext) -> CmykBuffers {
     let p = video.get_data_buffer(0);
     let mut offset = 0;
     let height = video.get_height() as usize;
@@ -148,11 +148,11 @@ impl GetPropertiesSource<Data> for HalftoneryFilter {
 
 impl FilterVideoSource<Data> for HalftoneryFilter {
     fn filter_video(data: &mut Option<Data>, video: &mut video::VideoDataContext) {
-        if video.get_format() != VideoFormat::YVYU {
-            println!("Only the YVYU colour format is currently supported");
+        if video.get_format() != VideoFormat::UYVY {
+            println!("Only the UYVY colour format is currently supported. Found: {:?}", video.get_format());
             return;
         }
-        let bufs = convert_yvyu_frame_to_cmyk_buffers(video);
+        let bufs = convert_uyuv_frame_to_cmyk_buffers(video);
         let width = video.get_width() as usize;
         let height = video.get_height() as usize;
         let spacing = if let Some(d) = data {d.spacing} else { 12 };

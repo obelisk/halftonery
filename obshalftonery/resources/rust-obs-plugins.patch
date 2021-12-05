@@ -1,0 +1,213 @@
+diff --git a/obs-sys/build_mac.rs b/obs-sys/build_mac.rs
+index 0eba226..266ab0b 100644
+--- a/obs-sys/build_mac.rs
++++ b/obs-sys/build_mac.rs
+@@ -18,7 +18,7 @@ pub fn find_mac_obs_lib() {
+     for c in candidates.iter() {
+         if let Ok(meta) = fs::metadata(c.join("libobs.0.dylib")) {
+             if meta.is_file() {
+-                println!("cargo:rustc-link-search=native={}", c.display());
++                println!("cargo:rustc-link-search=native=/Applications/OBS.app/Contents/Frameworks");
+                 return;
+             }
+         }
+diff --git a/src/source/ffi.rs b/src/source/ffi.rs
+index 8e191e3..31cef0d 100644
+--- a/src/source/ffi.rs
++++ b/src/source/ffi.rs
+@@ -1,4 +1,5 @@
+ use super::audio::AudioDataContext;
++use super::video::VideoDataContext;
+ use super::context::{CreatableSourceContext, GlobalContext, VideoRenderContext};
+ use super::hotkey::Hotkey;
+ use super::properties::Properties;
+@@ -15,7 +16,7 @@ use std::os::raw::c_char;
+ use obs_sys::{
+     gs_effect_t, obs_audio_data, obs_data_t, obs_hotkey_id, obs_hotkey_register_source,
+     obs_hotkey_t, obs_media_state, obs_properties, obs_source_audio_mix, obs_source_enum_proc_t,
+-    obs_source_t, size_t,
++    obs_source_t, size_t, obs_source_frame
+ };
+ 
+ struct DataWrapper<D> {
+@@ -223,6 +224,16 @@ pub unsafe extern "C" fn filter_audio<D, F: FilterAudioSource<D>>(
+     audio
+ }
+ 
++pub unsafe extern "C" fn filter_video<D, F: FilterVideoSource<D>>(
++    data: *mut ::std::os::raw::c_void,
++    video: *mut obs_source_frame,
++) -> *mut obs_source_frame {
++    let mut context = VideoDataContext::from_raw(video);
++    let wrapper: &mut DataWrapper<D> = &mut *(data as *mut DataWrapper<D>);
++    F::filter_video(&mut wrapper.data, &mut context);
++    video
++}
++
+ pub unsafe extern "C" fn media_play_pause<D, F: MediaPlayPauseSource<D>>(
+     data: *mut ::std::os::raw::c_void,
+     pause: bool,
+diff --git a/src/source/mod.rs b/src/source/mod.rs
+index 3afca16..15bd683 100644
+--- a/src/source/mod.rs
++++ b/src/source/mod.rs
+@@ -9,6 +9,7 @@ mod hotkey;
+ pub mod media;
+ pub mod properties;
+ pub mod traits;
++pub mod video;
+ 
+ pub use context::*;
+ pub use media::*;
+@@ -396,6 +397,7 @@ impl_source_builder! {
+     transition_stop => TransitionStopSource
+     video_tick => VideoTickSource
+     filter_audio => FilterAudioSource
++    filter_video => FilterVideoSource
+     get_defaults => GetDefaultsSource
+     media_play_pause => MediaPlayPauseSource
+     media_restart => MediaRestartSource
+diff --git a/src/source/traits.rs b/src/source/traits.rs
+index 47cc34e..860cb3c 100644
+--- a/src/source/traits.rs
++++ b/src/source/traits.rs
+@@ -1,6 +1,7 @@
+ use super::context::{CreatableSourceContext, GlobalContext, VideoRenderContext};
+ use super::properties::Properties;
+ use super::{audio::AudioDataContext, media::MediaState};
++use super::{video::VideoDataContext};
+ use super::{EnumActiveContext, EnumAllContext, SourceContext, SourceType};
+ use crate::data::DataObj;
+ use crate::string::ObsString;
+@@ -74,6 +75,10 @@ pub trait FilterAudioSource<D> {
+     fn filter_audio(data: &mut Option<D>, audio: &mut AudioDataContext);
+ }
+ 
++pub trait FilterVideoSource<D> {
++    fn filter_video(data: &mut Option<D>, audio: &mut VideoDataContext);
++}
++
+ pub trait MediaPlayPauseSource<D> {
+     fn play_pause(data: &mut Option<D>, pause: bool);
+ }
+diff --git a/src/source/video.rs b/src/source/video.rs
+new file mode 100644
+index 0000000..1952126
+--- /dev/null
++++ b/src/source/video.rs
+@@ -0,0 +1,115 @@
++use obs_sys::{
++    obs_source_frame,
++    video_output_get_width,
++    video_output_get_height,
++    video_output_get_frame_rate,
++    video_output_get_format,
++    video_t,
++};
++
++#[derive(Debug, PartialEq)]
++pub enum VideoFormat {
++    Unknown,
++    None,
++    I420,
++    NV12,
++    YVYU,
++    YUY2,
++    UYVY,
++    RGBA,
++    BGRA,
++    BGRX,
++    Y800,
++    I444,
++    BGR3,
++    I422,
++    I40A,
++    I42A,
++    YUVA,
++    AYUV,
++}
++
++impl From<u32> for VideoFormat {
++    fn from(raw: u32) -> Self {
++        match raw {
++            0 => VideoFormat::None,
++            1 => VideoFormat::I420,
++            2 => VideoFormat::NV12,
++            3 => VideoFormat::YVYU,
++            4 => VideoFormat::YUY2,
++            5 => VideoFormat::UYVY,
++            6 => VideoFormat::RGBA,
++            7 => VideoFormat::BGRA,
++            8 => VideoFormat::BGRX,
++            9 => VideoFormat::Y800,
++            10 => VideoFormat::I444,
++            11 => VideoFormat::BGR3,
++            12 => VideoFormat::I422,
++            13 => VideoFormat::I40A,
++            14 => VideoFormat::I42A,
++            15 => VideoFormat::YUVA,
++            16 => VideoFormat::AYUV,
++            _ => VideoFormat::Unknown,
++        }
++    }
++}
++
++pub struct VideoDataContext {
++    pointer: *mut obs_source_frame,
++}
++
++impl VideoDataContext {
++    pub(crate) unsafe fn from_raw(pointer: *mut obs_source_frame) -> Self {
++        Self { pointer }
++    }
++
++    pub fn get_format(&self) -> VideoFormat {
++        let raw = unsafe { (*self.pointer).format };
++
++        VideoFormat::from(raw as u32)
++    }
++
++    pub fn get_width(&self) -> u32 {
++        unsafe { (*self.pointer).width }
++    }
++
++    pub fn get_height(&self) -> u32 {
++        unsafe { (*self.pointer).height }
++    }
++
++    pub fn get_data_buffer(&self, idx: usize) -> *mut u8 {
++        unsafe { (*self.pointer).data[idx] }
++    }
++
++    pub fn get_linesize(&self, idx: usize) -> u32 {
++        unsafe { (*self.pointer).linesize[idx] }
++    }
++}
++
++pub struct VideoRef {
++    pointer: *mut video_t,
++}
++
++impl VideoRef {
++    pub(crate) unsafe fn from_raw(pointer: *mut video_t) -> Self {
++        Self { pointer }
++    }
++
++    pub(crate) fn get_width(&self) -> u32 {
++        unsafe { video_output_get_width(self.pointer) }
++    } 
++
++    pub(crate) fn get_height(&self) -> u32 {
++        unsafe { video_output_get_height(self.pointer) }
++    }
++    
++    pub(crate) fn get_frame_rate(&self) -> f64 {
++        unsafe { video_output_get_frame_rate(self.pointer) }
++    }
++
++    pub(crate) fn get_format(&self) -> VideoFormat {
++        let raw = unsafe { video_output_get_format(self.pointer) };
++
++        VideoFormat::from(raw as u32)
++    }
++}
