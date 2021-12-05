@@ -1,4 +1,4 @@
-mod color;
+pub mod color;
 
 use image::GenericImageView;
 use image::{Rgba, RgbaImage};
@@ -9,6 +9,7 @@ use imageproc::drawing::{
 };
 use imageproc::drawing::{Blend};
 use image::GenericImage;
+pub use image::ImageBuffer;
 
 // Set the screen angles that are used for the different colours.
 pub const CMYK_ANGLES: [f64; 4] = [15., 75., 90., 45.];
@@ -99,33 +100,7 @@ pub fn calculate_dots(deg_angle: f64, width: usize, height: usize, spacing: u32,
     locations
 }
 
-pub fn process_image_at_path(input_path: &str, output_path: &str, spacing: u32) -> Result<(), ()> {
-    let img = image::open(input_path).unwrap();
-
-    let width = img.width() as usize;
-    let height = img.height() as usize;
-
-    let mut c_buf = Vec::with_capacity(width * height);
-    let mut m_buf = Vec::with_capacity(width * height);
-    let mut y_buf = Vec::with_capacity(width * height);
-    let mut k_buf = Vec::with_capacity(width * height);
-
-    c_buf.resize(width * height, 0.0);
-    m_buf.resize(width * height, 0.0);
-    y_buf.resize(width * height, 0.0);
-    k_buf.resize(width * height, 0.0);
-
-    // Iterate over all pixels in the image.
-    for (x, y, rgba) in img.pixels() {
-        let cmyk = color::convert_rgb_to_cmyk(&color::Rgb{r: rgba[0], g: rgba[1], b: rgba[2]});
-
-        c_buf[y as usize * width + x as usize] = cmyk.c;
-        m_buf[y as usize * width + x as usize] = cmyk.m;
-        y_buf[y as usize * width + x as usize] = cmyk.y;
-        k_buf[y as usize * width + x as usize] = cmyk.k;  
-    }
-
-    // Quantize
+pub fn process_image_from_cmyk_buffers(width: usize, height: usize, spacing: u32, c_buf: &[f64], m_buf: &[f64], y_buf: &[f64], k_buf: &[f64]) -> Blend<ImageBuffer<Rgba<u8>, Vec<u8>>> {
     let c_locations = calculate_dots(CMYK_ANGLES[0], width, height, spacing, &c_buf);
     let m_locations = calculate_dots(CMYK_ANGLES[1], width, height, spacing, &m_buf);
     let y_locations = calculate_dots(CMYK_ANGLES[2], width, height, spacing, &y_buf);
@@ -153,6 +128,35 @@ pub fn process_image_at_path(input_path: &str, output_path: &str, spacing: u32) 
         draw_filled_circle_mut(&mut output, (c.0 as i32, c.1 as i32), ((spacing) as f64 * c.2) as i32, Rgba([0u8, 0u8, 0u8, 150u8]));
     }
 
+    output
+}
+
+pub fn process_image_at_path(input_path: &str, output_path: &str, spacing: u32) -> Result<(), ()> {
+    let img = image::open(input_path).unwrap();
+
+    let width = img.width() as usize;
+    let height = img.height() as usize;
+
+    let mut c_buf = Vec::with_capacity(width * height);
+    let mut m_buf = Vec::with_capacity(width * height);
+    let mut y_buf = Vec::with_capacity(width * height);
+    let mut k_buf = Vec::with_capacity(width * height);
+
+    c_buf.resize(width * height, 0.0);
+    m_buf.resize(width * height, 0.0);
+    y_buf.resize(width * height, 0.0);
+    k_buf.resize(width * height, 0.0);
+
+    // Iterate over all pixels in the image.
+    for (x, y, rgba) in img.pixels() {
+        let cmyk = color::convert_rgb_to_cmyk(&color::Rgb{r: rgba[0], g: rgba[1], b: rgba[2]});
+
+        c_buf[y as usize * width + x as usize] = cmyk.c;
+        m_buf[y as usize * width + x as usize] = cmyk.m;
+        y_buf[y as usize * width + x as usize] = cmyk.y;
+        k_buf[y as usize * width + x as usize] = cmyk.k;  
+    }
+    let mut output = process_image_from_cmyk_buffers(width, height, spacing, c_buf.as_ref(), m_buf.as_ref(), y_buf.as_ref(), k_buf.as_ref());
     output.0.inner_mut().save(output_path).unwrap();
     Ok(())
 }
